@@ -3,12 +3,12 @@ package subsystems
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path"
-	"strconv"
 )
 
-type CPUShareSubSystem struct{}
+type CPUShareSubSystem struct {
+	shareImplementation
+}
 
 func (c *CPUShareSubSystem) Name() string { return "cpu" }
 
@@ -24,24 +24,4 @@ func (c *CPUShareSubSystem) Set(cgroupPath string, res *ResourceConfig) error {
 		}
 	}
 	return nil
-}
-
-func (c *CPUShareSubSystem) Apply(cgroupPath string, pid int) error {
-	cgPath, err := GetCgroupPath(c.Name(), cgroupPath, false)
-	if err != nil {
-		return err
-	}
-	err = ioutil.WriteFile(path.Join(cgPath, "tasks"), []byte(strconv.Itoa(pid)), 0644)
-	if err != nil {
-		return fmt.Errorf("failed at set cgroup to proc: %d, error: %s", pid, err)
-	}
-	return nil
-}
-
-func (c *CPUShareSubSystem) Remove(cgroupPath string) error {
-	cgPath, err := GetCgroupPath(c.Name(), cgroupPath, false)
-	if err != nil {
-		return err
-	}
-	return os.RemoveAll(cgPath)
 }
