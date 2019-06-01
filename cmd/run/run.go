@@ -4,18 +4,24 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
+
+	"github.com/dannypsnl/vessel/cgroup"
+	"github.com/dannypsnl/vessel/cgroup/subsystems"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 var (
-	tty bool
+	tty         bool
+	memoryLimit string
 )
 
 func init() {
 	Cmd.PersistentFlags().BoolVarP(&tty, "tty", "t", false, "enable tty")
+	Cmd.PersistentFlags().StringVar(&memoryLimit, "memory", "", "limitation of memory")
 }
 
 var Cmd = &cobra.Command{
@@ -24,15 +30,51 @@ var Cmd = &cobra.Command{
 		if len(args) < 1 {
 			return fmt.Errorf("missing container command")
 		}
-		cmd := args[0]
-		Run(tty, cmd)
-		return nil
+		resource := &subsystems.ResourceConfig{
+			MemoryLimit: memoryLimit,
+		}
+		return Run(tty, args, resource)
 	},
 }
 
-func NewParentProcess(tty bool, cmd string) *exec.Cmd {
-	args := []string{"init", cmd}
-	command := exec.Command("/proc/self/exe", args...)
+func Run(tty bool, cmd []string, res *subsystems.ResourceConfig) error {
+	parent, writePipe, err := NewParentProcess(tty)
+	if err != nil {
+		return fmt.Errorf("failed at new parent process: %s", err)
+	}
+	if err := parent.Start(); err != nil {
+		return fmt.Errorf("failed at start parent process: %s", err)
+	}
+	cgroupManager := cgroup.NewManager("vessel-cgroup")
+	defer cgroupManager.Destroy()
+	cgroupManager.Set(res)
+	cgroupManager.Apply(parent.Process.Pid)
+	sendInitCommand(cmd, writePipe)
+	if err := parent.Wait(); err != nil {
+		return fmt.Errorf("process has some error: %s", err)
+	}
+	return nil
+}
+
+func sendInitCommand(cmd []string, writePipe *os.File) {
+	command := strings.Join(cmd, " ")
+	logrus.Infof("command all is %s", command)
+	_, err := writePipe.WriteString(command)
+	if err != nil {
+		logrus.Warn(err)
+	}
+	err = writePipe.Close()
+	if err != nil {
+		logrus.Warn(err)
+	}
+}
+
+func NewParentProcess(tty bool) (*exec.Cmd, *os.File, error) {
+	readPipe, writePipe, err := NewPipe()
+	if err != nil {
+		return nil, nil, err
+	}
+	command := exec.Command("/proc/self/exe", "init")
 	command.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWIPC,
 	}
@@ -41,17 +83,14 @@ func NewParentProcess(tty bool, cmd string) *exec.Cmd {
 		command.Stdout = os.Stdout
 		command.Stderr = os.Stderr
 	}
-	return command
+	command.ExtraFiles = []*os.File{readPipe}
+	return command, writePipe, nil
 }
 
-func Run(tty bool, cmd string) {
-	parent := NewParentProcess(tty, cmd)
-	if err := parent.Start(); err != nil {
-		logrus.Error(err)
-		os.Exit(-1)
+func NewPipe() (*os.File, *os.File, error) {
+	read, write, err := os.Pipe()
+	if err != nil {
+		return nil, nil, err
 	}
-	if err := parent.Wait(); err != nil {
-		logrus.Error(err)
-	}
-	os.Exit(-1)
+	return read, write, nil
 }
