@@ -61,7 +61,7 @@ func Run(tty bool, cmd []string, res *subsystems.ResourceConfig) error {
 
 func sendInitCommand(cmd []string, writePipe *os.File) {
 	command := strings.Join(cmd, " ")
-	logrus.Infof("command all is %s", command)
+	logrus.Infof("command all is `%s`", command)
 	_, err := writePipe.WriteString(command)
 	if err != nil {
 		logrus.Warn(err)
