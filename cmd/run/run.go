@@ -17,11 +17,13 @@ import (
 var (
 	tty         bool
 	memoryLimit string
+	cpuShare    string
 )
 
 func init() {
 	Cmd.PersistentFlags().BoolVarP(&tty, "tty", "t", false, "enable tty")
 	Cmd.PersistentFlags().StringVar(&memoryLimit, "memory", "", "limitation of memory")
+	Cmd.PersistentFlags().StringVar(&cpuShare, "cpu", "", "limitation of cpu share")
 }
 
 var Cmd = &cobra.Command{
@@ -32,6 +34,7 @@ var Cmd = &cobra.Command{
 		}
 		resource := &subsystems.ResourceConfig{
 			MemoryLimit: memoryLimit,
+			CPUShare:    cpuShare,
 		}
 		return Run(tty, args, resource)
 	},

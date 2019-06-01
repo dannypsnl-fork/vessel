@@ -17,4 +17,5 @@ type ResourceConfig struct {
 
 var SubSystemInstances = []SubSystem{
 	&MemorySubSystem{},
+	&CPUShareSubSystem{},
 }
