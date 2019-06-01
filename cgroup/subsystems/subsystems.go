@@ -24,9 +24,9 @@ type ResourceConfig struct {
 }
 
 var SubSystemInstances = []SubSystem{
-	&MemorySubSystem{},
-	&CPUShareSubSystem{},
-	&CpuSetSubSystem{},
+	&shareImplementation{SubSystem: &MemorySubSystem{}},
+	&shareImplementation{SubSystem: &CPUShareSubSystem{}},
+	&shareImplementation{SubSystem: &CpuSetSubSystem{}},
 }
 
 type shareImplementation struct {
